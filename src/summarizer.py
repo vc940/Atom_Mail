@@ -5,7 +5,7 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings,GoogleGenerative
 from dotenv import load_dotenv
 import langchain
 from datetime import datetime
-from retrival import EmailRetrieval
+from retriever import EmailRetrieval
 import yaml
 
 load_dotenv()
@@ -21,7 +21,7 @@ user_data ={
         "address": config['userdata']['address'],
         "position":config['userdata']['position'],
 }
-class summurize():
+class summarize():
     def __init__(self,userdata):
         self.llm = GoogleGenerativeAI(
         model = "gemini-1.5-flash"
@@ -53,5 +53,5 @@ class summurize():
         return self.llm.invoke(formatted)
 if __name__ == "__main__":
     email = """"""
-    refine_chunk = summurize(user_data)
+    refine_chunk = summarize(user_data)
     print(refine_chunk.generate(person_name ="Vaibhav Chavhan" ,email=email))
