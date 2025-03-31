@@ -1,46 +1,54 @@
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import langchain.prompts
 from langchain_chroma import Chroma
+from langchain_google_genai import GoogleGenerativeAIEmbeddings,GoogleGenerativeAI
 from dotenv import load_dotenv
+import langchain
+from datetime import datetime
+from retriever import EmailRetrieval
+import yaml
 
 load_dotenv()
-class EmailRetrieval:
-    def __init__(self):
-        self.embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/text-embedding-004"
-        )
-        self.vector_store = Chroma(
-            collection_name="gmail",
-            embedding_function=self.embeddings,
-            persist_directory="./chroma_langchain_db",
-        )
+with open("./config.yaml", "r") as file:
+    config = yaml.safe_load(file)
 
-    def retrieve_by_email(self, sender_email):
-        results = self.vector_store.get(
-            where={"sender_email": sender_email}  
-        )
-        if results["documents"]:
-            mails = []
-            for idx, doc in enumerate(results["documents"], start=1):
-                print(f"------------ Email {idx} ------------")
-                mail= f"Sender: {results['metadatas'][idx - 1]['sender_email']} \nReceiver: {results['metadatas'][idx - 1]['reciever_email']}\nContent: {doc[:1000]}\n"
-                mails.append(mail)
-            return mail
-        else:
-            print("No emails found.")
-    def retrieve_by_name(self,sender_name):
-        results = self.vector_store.get(
-            where={"sender": sender_name}
-        )
-        if results["documents"]:
-            mails = []
-            for idx, doc in enumerate(results["documents"], start=1):
-                print(f"------------ Email {idx} ------------")
-                mail = f"Sender: {results['metadatas'][idx - 1]['sender']}\nReceiver: {results['metadatas'][idx - 1]['receiver']}\nContent: {doc[:1000]} \n"
-                mails.append(mail)
 
-                return mail
-        else:
-            print("No names found.")
+user_data ={
+        "Name": config['userdata']['Name'],
+        "email":config['userdata']['email'],
+        "phone": config['userdata']['phone'],
+        "address": config['userdata']['address'],
+        "position":config['userdata']['position'],
+}
+retreiver = EmailRetrieval()    
+class Response:
+    def __init__(self,user_data):
+        self.llm = GoogleGenerativeAI(
+            model = "gemini-2.0-flash"
+        )
+        self.prompt_template = langchain.prompts.PromptTemplate(
+            input_variable = ["prompt","formatted_time","emails","user_data"],
+            template = """you are a AI agent used to generate Mails using previous contexts or conversations if available.
+            date and time : {formatted_time}
+
+            sender details  
+               {user_data}
+                
+            previous email thread:
+               {emails}
+
+            write just a  mail and nothing else:  {prompt}"""
+        )
+        self.user_data = user_data
+
+    def retrieveandgenerate(self,user_prompt,user_name):
+        now = datetime.now()
+        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        formatted = self.prompt_template.format(prompt = user_prompt,formatted_time = formatted_time,emails = "".join(retreiver.retrieve_by_name(user_name)),user_data = self.user_data)
+        return self.llm.invoke(formatted)
+
+    
 if __name__ == "__main__":
-    retriever = EmailRetrieval()
-    print(retriever.retrieve_by_name("Vaibhav Chavhan")) 
+    response = Response(user_data)
+    prompt = "shedule a meet at 12 am tomoorow"
+    user = "Vaibhav Chavhan"
+    print(response.retrieveandgenerate(prompt,user))
