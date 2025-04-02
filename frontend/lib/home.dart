@@ -1,78 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:googleapis/gmail/v1.dart';
-import 'package:googleapis_auth/googleapis_auth.dart' as auth;
-import 'package:http/http.dart' as http;
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/gmail_bloc.dart';
+import '../bloc/gmail_event.dart';
+import 'bloc/gmail_state.dart';
 
-class Home extends StatefulWidget {
-  @override
-  HomeState createState() => HomeState();
-}
-
-class HomeState extends State<Home> {
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-  );
-
-  List<String> emails = [];
-
-  Future<void> _signInAndFetchEmails() async {
-    try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return;
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final auth.AuthClient authClient = auth.authenticatedClient(
-        http.Client(),
-        auth.AccessCredentials(
-          auth.AccessToken(
-            'Bearer',
-            googleAuth.accessToken!,
-            DateTime.now().toUtc().add(Duration(hours: 1)),
-          ),
-          googleAuth.idToken,
-          ['https://www.googleapis.com/auth/gmail.readonly'],
-        ),
-      );
-
-      final gmailApi = GmailApi(authClient);
-      final messages = await gmailApi.users.messages.list('me').then((res) => res.messages);
-
-      if (messages != null) {
-        List<String> emailSnippets = [];
-        for (var msg in messages) {
-          var message = await gmailApi.users.messages.get('me', msg.id!);
-          emailSnippets.add(message.snippet ?? 'No content');
-        }
-        print("Emails: $emailSnippets");
-        setState(() {
-          emails = emailSnippets;
-        });
-      }
-    } catch (error) {
-      print("Error: $error");
-    }
-  }
-
+class Home extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Gmail Reader')),
-      body: Column(
-        children: [
-          ElevatedButton(
-            onPressed: _signInAndFetchEmails,
-            child: Text('Sign in & Read Emails'),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: emails.length,
+      appBar: AppBar(title: Text("Gmail API with BLoC"), scrolledUnderElevation: 0.0, backgroundColor: Colors.transparent,),
+      body: BlocBuilder<GmailBloc, GmailState>(
+        builder: (context, state) {
+          if (state is GmailLoading) {
+            return Center(child: CircularProgressIndicator());
+          } else if (state is GmailSignedIn) {
+            return Column(
+              children: [
+                Text("Signed in as: ${state.email}"),
+                ElevatedButton(
+                  onPressed: () {
+                    BlocProvider.of<GmailBloc>(context).add(FetchEmailsEvent());
+                  },
+                  child: Text("Fetch Emails"),
+                ),
+              ],
+            );
+          } else if (state is GmailEmailsFetched) {
+            return ListView.builder(
+              itemCount: state.emails.length,
               itemBuilder: (context, index) {
-                return ListTile(title: Text(emails[index]));
+                return ListTile(title: Text(state.emails[index]));
               },
+            );
+          } else if (state is GmailError) {
+            return Center(child: Text("Error: ${state.message}", style: TextStyle(color: Colors.red)));
+          }
+
+          return Center(
+            child: ElevatedButton(
+              onPressed: () {
+                BlocProvider.of<GmailBloc>(context).add(SignInEvent());
+              },
+              child: Text("Sign in with Google"),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
