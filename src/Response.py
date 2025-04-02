@@ -4,7 +4,7 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings,GoogleGenerative
 from dotenv import load_dotenv
 import langchain
 from datetime import datetime
-from retriever import EmailRetrieval
+from retriever import ChromaRetrieve
 import yaml
 
 load_dotenv()
@@ -19,9 +19,9 @@ user_data ={
         "address": config['userdata']['address'],
         "position":config['userdata']['position'],
 }
-retreiver = EmailRetrieval()    
+retreiver = ChromaRetrieve()    
 class Response:
-    def __init__(self,user_data):
+    def __init__(self,user_data=user_data):
         self.llm = GoogleGenerativeAI(
             model = "gemini-2.0-flash"
         )
@@ -40,15 +40,16 @@ class Response:
         )
         self.user_data = user_data
 
-    def retrieveandgenerate(self,user_prompt,user_name):
+    def retrieveandgenerate(self,user_prompt,user_email):
         now = datetime.now()
         formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        formatted = self.prompt_template.format(prompt = user_prompt,formatted_time = formatted_time,emails = "".join(retreiver.retrieve_by_name(user_name)),user_data = self.user_data)
+        formatted = self.prompt_template.format(prompt = user_prompt,formatted_time = formatted_time,emails = retreiver.full_thread(user_email),user_data = self.user_data)
+        print(formatted)
         return self.llm.invoke(formatted)
 
     
 if __name__ == "__main__":
     response = Response(user_data)
-    prompt = "shedule a meet at 12 am tomoorow"
-    user = "Vaibhav Chavhan"
+    prompt = "shedule a meet at 12 am tomorrow with vaibhav at jasper garden delhi regarding deal"
+    user = "vaibhav940845@gmail.com"
     print(response.retrieveandgenerate(prompt,user))

@@ -14,10 +14,12 @@ from datetime import datetime
 import time
 import re
 
-
+    
+TOKEN_PATH = "token.pickle"
+CRED_PATH = "Api/client_secret_471719377791-ajhn80o8ijbtm6d9n778sadr2mq1415i.apps.googleusercontent.com.json"
 
 class ChromaManage():
-    def __init__(self, credential_path,token_path=""):
+    def __init__(self, credential_path=CRED_PATH,token_path=TOKEN_PATH):
         load_dotenv()
         self.credential_path = credential_path
         self.token_path = token_path
@@ -25,10 +27,9 @@ class ChromaManage():
         self.vector_store =  Chroma(
         collection_name="gmail",
         embedding_function=self.embeddings,
-        persist_directory="./chroma_langchain_db",  
+        persist_directory="chroma_langchain_db",  
         )
         self.service = self.authenticate_gmail()
-
 
     def authenticate_gmail(self):
         SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
@@ -48,16 +49,23 @@ class ChromaManage():
         return service
 
     def add_to_database(self,max_results=5):
-        results = self.service.users().messages().list(userId='me', maxResults=max_results).execute()
+        results = self.service.users().messages().list(userId='me',maxResults=max_results).execute()
+        print(results.keys())
         messages = results.get('messages', [])
         documents = []
         latest_time = os.getenv("LAST_MAIL_TIME")
         for idx,msg in enumerate(messages):
             metadata,email = self.get_full_email(self.service, msg['id'])
+            msg_id = msg['id']
             if(float(metadata['timestamp']) > float(os.getenv("LAST_MAIL_TIME"))):
+                msg_data = self.service.users().messages().get(userId="me", id=msg_id, format="full").execute()
+                thread_id = msg_data["threadId"]
+                metadata['thread_id']  = thread_id
+                print(thread_id)
                 if idx == 0 :
                     latest_time = str(metadata['timestamp']) 
                 doc = Document(page_content = email,id = uuid4(),metadata=metadata,)
+                print(email[:100])
                 documents.append(doc)
             else:
                  break
@@ -99,7 +107,6 @@ class ChromaManage():
         return meta_data,full_mail
 
 
-
     @staticmethod
     def time_strp(Date):
         time_str = Date
@@ -130,9 +137,7 @@ class ChromaManage():
 
 
 if __name__ == "__main__":
-    
-    TOKEN_PATH = "token.pickle"
-    CRED_PATH = "Api/client_secret_471719377791-ajhn80o8ijbtm6d9n778sadr2mq1415i.apps.googleusercontent.com.json"
+
     chroma_manage = ChromaManage(token_path=TOKEN_PATH,credential_path=CRED_PATH)
     chroma_manage.add_to_database(max_results=30)
 

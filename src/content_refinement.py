@@ -4,17 +4,18 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings,GoogleGenerative
 from dotenv import load_dotenv
 import langchain
 from datetime import datetime
-from retriever import EmailRetrieval
+from retriever import ChromaRetrieve
 import yaml
 
 
 
 with open("./config.yaml", "r") as file:
     config = yaml.safe_load(file)
-retreiver = EmailRetrieval()
+retreiver = ChromaRetrieve()
 now = datetime.now()
 formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
 load_dotenv()
+
 
 user_data ={
 
@@ -27,14 +28,14 @@ user_data ={
 }
 
 class Refine_chunk():
-    def __init__(self,userdata):
+    def __init__(self,userdata=user_data):
         self.llm = GoogleGenerativeAI(
         model = "gemini-1.5-flash"
          )
         self.user_data = userdata
 
 
-    def generate(self,prompt,person_name,generated_email,chunk):
+    def generate(self,prompt,person_email,generated_email,chunk):
         now = datetime.now()
         formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
         prompt_template = langchain.prompts.PromptTemplate(
@@ -58,12 +59,12 @@ class Refine_chunk():
             analyze previous mails if needed and delete the chunk to be refine from generated email and generate a new email according to user need: {prompt}"""
         )
                 
-        formatted = prompt_template.format(prompt = prompt,formatted_time = formatted_time,emails = generated_email.join(retreiver.retrieve_by_name(person_name)),user_data = self.user_data,generated_email = generated_email,chunk = chunk)
+        formatted = prompt_template.format(prompt = prompt,formatted_time = formatted_time,emails = "".join(retreiver.full_thread(person_email)),user_data = self.user_data,generated_email = generated_email,chunk = chunk)
+        print(formatted)
         return self.llm.invoke(formatted)
-        
-
 if __name__ == "__main__":
-    generated_email = ""
-    chunk = ""
     refine_chunk = Refine_chunk(user_data)
-    print(refine_chunk.generate(prompt = "remove that chunk",person_name ="Tanmay Kishore" ,generated_email=generated_email,chunk=chunk ))
+    email = """"""
+
+    chunk = """"""
+    print(refine_chunk.generate(prompt = "",person_email ="vaibhav940845@gmail.com" ,generated_email=email,chunk=chunk ))

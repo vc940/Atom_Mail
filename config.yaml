@@ -4,3 +4,8 @@ userdata:
     phone: +91 9928410698
     address: bengaluru,india
     position: SDE1 google.inc
+
+Model:
+    llm: GoogleGenAI
+    embeddings: GoogleGenAI
+    
