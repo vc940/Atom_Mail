@@ -13,6 +13,8 @@ import email
 from datetime import datetime
 import time
 import re
+from transformers import pipeline
+
 
     
 TOKEN_PATH = "token.pickle"
@@ -29,6 +31,10 @@ class ChromaManage():
         embedding_function=self.embeddings,
         persist_directory="chroma_langchain_db",  
         )
+        self.pipe = pipeline("token-classification", model="iiiorg/piiranha-v1-detect-personal-information")
+        self.labels = ['I-ACCOUNTNUM', 'I-CREDITCARDNUMBER', 'I-DRIVERLICENSENUM','I-IDCARDNUM','I-PASSWORD','I-TAXNUM']
+
+        
         self.service = self.authenticate_gmail()
 
     def authenticate_gmail(self):
@@ -50,7 +56,6 @@ class ChromaManage():
 
     def add_to_database(self,max_results=5):
         results = self.service.users().messages().list(userId='me',maxResults=max_results).execute()
-        print(results.keys())
         messages = results.get('messages', [])
         documents = []
         latest_time = os.getenv("LAST_MAIL_TIME")
@@ -61,11 +66,9 @@ class ChromaManage():
                 msg_data = self.service.users().messages().get(userId="me", id=msg_id, format="full").execute()
                 thread_id = msg_data["threadId"]
                 metadata['thread_id']  = thread_id
-                print(thread_id)
                 if idx == 0 :
                     latest_time = str(metadata['timestamp']) 
                 doc = Document(page_content = email,id = uuid4(),metadata=metadata,)
-                print(email[:100])
                 documents.append(doc)
             else:
                  break
@@ -104,8 +107,18 @@ class ChromaManage():
                 if part['mimeType'] == 'text/plain':
                     email_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
         full_mail = f"From: {sender}\n"+ f"Subject: {subject}\n" + f"Body: {email_body}\n"
+        full_mail = self.masksensitive(full_mail)
         return meta_data,full_mail
 
+    def masksensitive(self,email):
+        results = self.pipe(email)
+        sensitive_results = [r for r in results if r['entity'] in self.labels and (r['end'] - r['start']) > 1]
+        sensitive_results = sorted(sensitive_results, key=lambda x: x['start'], reverse=True)
+        for i in sensitive_results:
+            start = i['start']
+            end = i['end']
+            email = email[:start] + "*" * (end - start) + email[end:]
+        return email
 
     @staticmethod
     def time_strp(Date):
@@ -125,6 +138,7 @@ class ChromaManage():
             return name.strip(), email.strip()
         return None, None
     
+
     @staticmethod
     def change_latest_time(time):
         env_path = ".env"
